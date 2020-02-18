@@ -305,19 +305,18 @@
    :embedding_params {:date :enabled}})
 
 (deftest csv-reports-count
-  (is (= "count\n107\n"
-         (with-embedding-enabled-and-new-secret-key
-           (tt/with-temp Card [card (card-with-date-field-filter)]
+  (with-embedding-enabled-and-new-secret-key
+    (tt/with-temp Card [card (card-with-date-field-filter)]
+      (is (= "count\n107\n"
              (http/client :get 202 (str (card-query-url card "/csv") "?date=Q1-2014")))))))
 
-
 (deftest make-sure-it-also-works-with-the-forwarded-url
-  (is (= "count\n107\n"
-         (with-embedding-enabled-and-new-secret-key
-           (tt/with-temp Card [card (card-with-date-field-filter)]
-             ;; make sure the URL doesn't include /api/ at the beginning like it normally would
-             (binding [http/*url-prefix* (str/replace http/*url-prefix* #"/api/$" "/")]
-               (tu/with-temporary-setting-values [site-url http/*url-prefix*]
+  (with-embedding-enabled-and-new-secret-key
+    (tt/with-temp Card [card (card-with-date-field-filter)]
+      ;; make sure the URL doesn't include /api/ at the beginning like it normally would
+      (binding [http/*url-prefix* (str/replace http/*url-prefix* #"/api/$" "/")]
+        (tu/with-temporary-setting-values [site-url http/*url-prefix*]
+          (is (= "count\n107\n"
                  (http/client :get 202 (str "embed/question/" (card-token card) ".csv?date=Q1-2014")))))))))
 
 ;;; ---------------------------------------- GET /api/embed/dashboard/:token -----------------------------------------

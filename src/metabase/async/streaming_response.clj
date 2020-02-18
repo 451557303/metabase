@@ -73,15 +73,16 @@
   The overhead of this compared to the wrapped `OutputStream` is relatively low -- ~85 ms for 1 million writes to disk
   vs ~25 ms for a raw OutputStream."
   ^OutputStream [^OutputStream os {:keys [they-have-started-writing-chan they-are-done-chan]}]
-  (let [begin! (delay
-                 (a/>!! they-have-started-writing-chan ::wrote-something))
-        close! (delay
-                 (a/>!! they-are-done-chan ::closed)
-                 (u/ignore-exceptions
-                   (.close os)))]
+  (let [begin!  (delay
+                  (a/>!! they-have-started-writing-chan ::wrote-something))
+        close!  (delay
+                  (a/>!! they-are-done-chan ::closed)
+                  (u/ignore-exceptions
+                    (.close os)))]
     (proxy [OutputStream] []
       (flush []
-        (.flush os))
+        (u/ignore-exceptions
+          (.flush os)))
       (close []
         @close!)
       (write

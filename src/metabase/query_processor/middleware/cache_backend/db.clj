@@ -2,8 +2,10 @@
   (:require [clojure.tools.logging :as log]
             [java-time :as t]
             [metabase
+             [db :as mdb]
              [public-settings :as public-settings]
              [util :as u]]
+            [metabase.driver.sql.query-processor :as sql.qp]
             [metabase.models.query-cache :refer [QueryCache]]
             [metabase.query-processor.middleware.cache-backend.interface :as i]
             [taoensso.nippy :as nippy]
@@ -16,7 +18,11 @@
   [query-hash max-age-seconds]
   (when-let [{:keys [results updated_at]} (db/select-one [QueryCache :results :updated_at]
                                             :query_hash query-hash
-                                            :updated_at [:>= (t/minus (t/instant) (t/seconds max-age-seconds))])]
+                                            :updated_at [:>= (sql.qp/add-interval-honeysql-form
+                                                              (mdb/db-type)
+                                                              (sql.qp/current-datetime-honeysql-form (mdb/db-type))
+                                                              (- max-age-seconds)
+                                                              :second)])]
     (assoc results :updated_at updated_at)))
 
 (defn- purge-old-cache-entries!
