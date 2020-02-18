@@ -1,6 +1,5 @@
 (ns metabase.query-processor.middleware.cache-backend.db
   (:require [clojure.tools.logging :as log]
-            [java-time :as t]
             [metabase
              [db :as mdb]
              [public-settings :as public-settings]
@@ -21,15 +20,19 @@
                                             :updated_at [:>= (sql.qp/add-interval-honeysql-form
                                                               (mdb/db-type)
                                                               (sql.qp/current-datetime-honeysql-form (mdb/db-type))
-                                                              (- max-age-seconds)
-                                                              :second)])]
+                                                              (- (long (* max-age-seconds 1000)))
+                                                              :millisecond)])]
     (assoc results :updated_at updated_at)))
 
 (defn- purge-old-cache-entries!
   "Delete any cache entries that are older than the global max age `max-cache-entry-age-seconds` (currently 3 months)."
   []
   (db/simple-delete! QueryCache
-    :updated_at [:<= (t/minus (t/instant) (t/seconds (public-settings/query-caching-max-ttl)))]))
+    :updated_at [:<= (sql.qp/add-interval-honeysql-form
+                      (mdb/db-type)
+                      (sql.qp/current-datetime-honeysql-form (mdb/db-type))
+                      (- (long (* (public-settings/query-caching-max-ttl) 1000)))
+                      :millisecond)]))
 
 (defn- throw-if-max-exceeded [max-num-bytes bytes-in-flight]
   (when (< max-num-bytes bytes-in-flight)
@@ -66,13 +69,13 @@
   returned."
   [max-bytes results]
   (try
-    (let [bos  (ByteArrayOutputStream.)
-          lbos (limited-byte-output-stream max-bytes bos)]
-      (with-open [buff-out (BufferedOutputStream. lbos)
-                  gz-out   (GZIPOutputStream. buff-out)
-                  data-out (DataOutputStream. gz-out)]
-        (nippy/freeze-to-out! data-out results))
-      (.toByteArray bos))
+    (with-open [bos (ByteArrayOutputStream.)]
+      (let [lbos (limited-byte-output-stream max-bytes bos)]
+        (with-open [buff-out (BufferedOutputStream. lbos)
+                    gz-out   (GZIPOutputStream. buff-out)
+                    data-out (DataOutputStream. gz-out)]
+          (nippy/freeze-to-out! data-out results)
+          (.toByteArray bos))))
     (catch clojure.lang.ExceptionInfo e
       (if (= ::max-bytes (:type (ex-data e)))
         ::exceeded-max-bytes

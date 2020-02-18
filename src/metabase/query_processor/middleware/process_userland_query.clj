@@ -91,16 +91,18 @@
 (defn- add-and-save-execution-info-xform! [{:keys [cached?]} execution-info]
   (fn execution-info-xform* [rf]
     {:pre [(fn? rf)]}
+    (println "rf [add-and-save-execution-info]:" rf) ; NOCOMMIT
     ;; don't do anything for cached results
     ;; TODO - we should test for this
     (if cached?
       rf
       (let [row-count (volatile! 0)]
-        (fn execution-info-rf*
+        (fn save-execution-info-rf
           ([]
            (rf))
 
           ([acc]
+           (println "acc [save exec. info]:" acc) ; NOCOMMIT
            (save-successful-query-execution-async! execution-info @row-count)
            (rf (if (map? acc)
                  (success-response execution-info acc)

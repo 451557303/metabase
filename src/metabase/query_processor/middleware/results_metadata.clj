@@ -11,7 +11,6 @@
             [metabase.util
              [encryption :as encryption]
              [i18n :refer [tru]]]
-            [redux.core :as redux]
             [ring.util.codec :as codec]
             [toucan.db :as db]))
 
@@ -105,16 +104,31 @@
 
 (defn- insights-xform [orig-metadata record!]
   (fn insights-rf [rf]
-    (redux/post-complete
-     (redux/juxt rf (analyze.results/insights-rf orig-metadata))
-     (fn [[result {:keys [metadata insights]}]]
-       (record! metadata)
-       (if-not (map? result)
-         result
-         (update result :data #(assoc %
-                                      :results_metadata {:checksum (metadata-checksum metadata)
-                                                         :columns  metadata}
-                                      :insights insights)))))))
+    (println "rf [insights]:" rf) ; NOCOMMIT
+    (let [insights-rf  (analyze.results/insights-rf orig-metadata)
+          insights-acc (volatile! (insights-rf))]
+      (fn
+        ([] (rf))
+
+        ([result]
+         (rf (try
+               (let [{:keys [metadata insights]} (insights-rf (unreduced @insights-acc))]
+                 (println "metadata:" metadata) ; NOCOMMIT
+                 (println "insights:" insights) ; NOCOMMIT
+                 (record! metadata)
+                 (if-not (map? result)
+                   result
+                   (update result :data #(assoc %
+                                                :results_metadata {:checksum (metadata-checksum metadata)
+                                                                   :columns  metadata}
+                                                :insights insights))))
+               (catch Throwable e
+                 (println "e:" e)       ; NOCOMMIT
+                 result))))
+
+        ([acc row]
+         (vswap! insights-acc insights-rf row)
+         (rf acc row))))))
 
 (defn record-and-return-metadata!
   "Middleware that records metadata about the columns returned when running the query."

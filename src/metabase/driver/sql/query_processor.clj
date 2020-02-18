@@ -96,9 +96,10 @@
 
 (defmulti add-interval-honeysql-form
   "Return a HoneySQL form that performs represents addition of some temporal interval to the original `hsql-form`.
+  `amount` is presumably an integer.
 
     (add-interval-honeysql-form :my-driver hsql-form 1 :day) -> (hsql/call :date_add hsql-form 1 (hx/literal 'day'))"
-  {:arglists '([driver hsql-form amount unit])}
+  {:arglists '([driver hsql-form amount unit]), :added "0.34.0"}
   driver/dispatch-on-initialized-driver
   :hierarchy #'driver/hierarchy)
 

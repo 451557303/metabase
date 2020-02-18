@@ -13,18 +13,21 @@
 (defn- add-rows-truncated-xform [limit]
   {:pre [(int? limit)]}
   (let [row-count (volatile! 0)]
-    (fn add-rows-truncated-rf [rf]
+    (fn [rf]
       {:pre [(fn? rf)]}
-      (fn
+      (println "rf [add-rows-truncated]" rf) ; NOCOMMIT
+      (fn add-rows-truncated-rf
         ([]
          (rf))
 
         ([result]
+         (println "result:" result)     ; NOCOMMIT
          (rf (cond-> result
                (and (map? result) (= @row-count limit))
                (assoc-in [:data :rows_truncated] limit))))
 
         ([result row]
+         (println "@row-count:" @row-count) ; NOCOMMIT
          (vswap! row-count inc)
          (rf result row))))))
 

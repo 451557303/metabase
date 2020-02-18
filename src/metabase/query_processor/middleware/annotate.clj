@@ -17,7 +17,6 @@
             [metabase.util
              [i18n :refer [deferred-tru tru]]
              [schema :as su]]
-            [redux.core :as redux]
             [schema.core :as s]))
 
 (def ^:private Col
@@ -505,12 +504,22 @@
 
 (defn- add-column-info-xform [{query-type :type, :as query} metadata]
   (fn [rf]
-    (redux/post-complete
-     (redux/juxt rf ((take column-info-sample-size) conj))
-     (fn [[result sampled-rows]]
-       (if-not (map? result)
-         result
-         (assoc-in result [:data :cols] (column-info* query (assoc metadata :rows sampled-rows))))))))
+    (println "rf [add-column-info]:" rf) ; NOCOMMIT
+    (let [rows-sample           (volatile! [])
+          remaining-sample-size (volatile! column-info-sample-size)]
+      (fn
+        ([]
+         (rf))
+
+        ([result]
+         (rf (cond-> result
+               (map? result)
+               (assoc-in [:data :cols] (column-info* query (assoc metadata :rows @rows-sample))))))
+
+        ([acc row]
+         (when-not (neg? (vswap! remaining-sample-size dec))
+           (vswap! rows-sample conj row))
+         (rf acc row))))))
 
 (defn add-column-info
   "Middleware for adding type information about the columns in the query results (the `:cols` key)."

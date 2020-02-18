@@ -71,9 +71,16 @@
      (assoc driver.common/default-additional-options-details
        :placeholder  "tinyInt1isBit=false")]))
 
-(defmethod driver/date-add :mysql
-  [_ hsql-form amount unit]
-  (hsql/call :date_add hsql-form (hsql/raw (format "INTERVAL %d %s" (int amount) (name unit)))))
+(defmethod sql.qp/add-interval-honeysql-form :mysql
+  [driver hsql-form amount unit]
+  ;; MySQL doesn't support millisecond as an option. If milliseconds is a large amount, divide by 1000 and use seconds
+  ;; instead because MySQL will barf if you use an amount that is too huge. Otherwise mulitply by 1000 and use
+  ;; microseconds for accuracy
+  (if (= unit :millisecond)
+    (if (> amount (/ Integer/MAX_VALUE 1000.0))
+      (recur driver hsql-form (/ amount 1000.0) :second)
+      (recur driver hsql-form (* amount 1000.0) :microsecond))
+    (hsql/call :date_add hsql-form (hsql/raw (format "INTERVAL %d %s" (int amount) (name unit))))))
 
 (defmethod driver/humanize-connection-error-message :mysql
   [_ message]

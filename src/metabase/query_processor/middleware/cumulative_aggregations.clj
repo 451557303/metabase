@@ -41,6 +41,7 @@
 
 (defn- cumulative-ags-xform [replaced-indecies]
   (fn cumulative-ags-rf [rf]
+    (println "rf:" rf) ; NOCOMMIT
     {:pre [(fn? rf)]}
     (let [last-row (volatile! nil)]
       (fn

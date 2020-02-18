@@ -169,7 +169,7 @@
     ;; result of this fn is ignored
     nil))
 
-(p.types/deftype+ StreamingResponse [f options]
+(p.types/deftype+ StreamingResponse [f options done-chan]
   pretty/PrettyPrintable
   (pretty [_]
     (list '->StreamingResponse f options))
@@ -177,7 +177,9 @@
   ;; both sync and async responses
   ring.protocols/StreamableResponseBody
   (write-body-to-stream [_ _ ostream]
-    (do-streaming-response ostream f options))
+    (do-streaming-response ostream f options)
+    (a/>!! done-chan :done)
+    (a/close! done-chan))
 
   ;; async responses only
   compojure.response/Sendable
@@ -215,4 +217,5 @@
   [options [os-binding canceled-chan-binding :as bindings] & body]
   {:pre [(= (count bindings) 2)]}
   `(->StreamingResponse (fn [~(vary-meta os-binding assoc :tag 'java.io.OutputStream) ~canceled-chan-binding] ~@body)
-                        ~options))
+                        ~options
+                        (a/promise-chan)))
